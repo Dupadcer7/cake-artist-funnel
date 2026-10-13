@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import valeProfile from "../../assets/vale-profile.jpg";
+import valeProfile from "../../assets/vale-profile-correcta.jpg";
 import { BonusCard, CheckoutCard, CheckoutVideo, ModulesSequence, PriceCard, TestimonialsGallery, type OfferPrice } from "../offer/OfferCards";
 
 export type ChatMessage = {

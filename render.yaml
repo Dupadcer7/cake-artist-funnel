@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: cake-artist-vale
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: DATA_DIR
+        value: /tmp/data
+      - key: UPLOAD_DIR
+        value: /tmp/data/uploads

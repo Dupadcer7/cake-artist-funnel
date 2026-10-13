@@ -5,6 +5,7 @@ type SpeechRecognitionLike = {
   start: () => void; stop: () => void;
   onresult: ((event: { results: ArrayLike<{ 0: { transcript: string }; isFinal: boolean }> }) => void) | null;
   onerror: (() => void) | null;
+  onend: (() => void) | null;
 };
 
 type SpeechWindow = Window & typeof globalThis & { webkitSpeechRecognition?: new () => SpeechRecognitionLike; SpeechRecognition?: new () => SpeechRecognitionLike };
@@ -20,11 +21,41 @@ export function ChatInput({ disabled, processingAudio, onSend, onImage, onAudio 
   const chunksRef = useRef<Blob[]>([]);
   const transcriptRef = useRef("");
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const resultIndexRef = useRef(0);
+  const finalizeTimerRef = useRef<number | null>(null);
+  const finalizedRef = useRef(false);
 
   function submit(event: FormEvent) { event.preventDefault(); const clean = text.trim(); if (!clean || disabled) return; onSend(clean); setText(""); }
   function chooseImage(event: ChangeEvent<HTMLInputElement>) { const file = event.target.files?.[0]; if (file) onImage(file); event.target.value = ""; }
   function stopTracks() { streamRef.current?.getTracks().forEach((track) => track.stop()); streamRef.current = null; }
-  function stopRecording() { recorderRef.current?.stop(); recognitionRef.current?.stop(); recognitionRef.current = null; setRecording(false); }
+  function finalizePreview() {
+    if (finalizedRef.current) return;
+    finalizedRef.current = true;
+    if (finalizeTimerRef.current !== null) { window.clearTimeout(finalizeTimerRef.current); finalizeTimerRef.current = null; }
+    const recorder = recorderRef.current;
+    const blob = new Blob(chunksRef.current, { type: recorder?.mimeType || "audio/webm" });
+    if (!blob.size) setAudioError("No se detectó audio. Inténtalo otra vez y habla después de iniciar la grabación.");
+    else setPreview({ blob, url: URL.createObjectURL(blob), transcript: transcriptRef.current.trim() });
+    stopTracks();
+    recorderRef.current = null;
+  }
+  function stopRecording() {
+    setRecording(false);
+    finalizedRef.current = false;
+    const recognition = recognitionRef.current;
+    recognitionRef.current = null;
+    const recorder = recorderRef.current;
+    if (recorder) recorder.onstop = () => { /* la vista previa se crea al terminar la transcripción */ };
+    try { recorder?.stop(); } catch { /* noop */ }
+    if (recognition) {
+      // Esperar los resultados finales de la transcripción antes de crear la vista previa
+      recognition.onend = () => finalizePreview();
+      try { recognition.stop(); } catch { /* noop */ }
+      finalizeTimerRef.current = window.setTimeout(() => finalizePreview(), 2500);
+    } else {
+      finalizePreview();
+    }
+  }
   async function startRecording() {
     setAudioError(null);
     try {
@@ -32,18 +63,13 @@ export function ChatInput({ disabled, processingAudio, onSend, onImage, onAudio 
         setAudioError("La grabación de voz no está disponible en este navegador. Puedes escribir tu mensaje aquí mismo.");
         return;
       }
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); streamRef.current = stream; chunksRef.current = []; transcriptRef.current = "";
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); streamRef.current = stream; chunksRef.current = []; transcriptRef.current = ""; resultIndexRef.current = 0; finalizedRef.current = false;
       const recorder = new MediaRecorder(stream); recorderRef.current = recorder;
       recorder.ondataavailable = (event) => { if (event.data.size) chunksRef.current.push(event.data); };
       recorder.onerror = () => { setAudioError("No pude grabar el audio. Revisa el permiso del micrófono e inténtalo otra vez."); setRecording(false); stopTracks(); };
-      recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
-        if (!blob.size) setAudioError("No se detectó audio. Inténtalo otra vez y habla después de iniciar la grabación.");
-        else setPreview({ blob, url: URL.createObjectURL(blob), transcript: transcriptRef.current.trim() });
-        stopTracks();
-      };
+      recorder.onstop = () => finalizePreview();
       const w = window as SpeechWindow; const Ctor = w.SpeechRecognition ?? w.webkitSpeechRecognition;
-      if (Ctor) { const recognition = new Ctor(); recognition.lang = "es-419"; recognition.continuous = true; recognition.interimResults = true; recognition.onresult = (event) => { let finalText = ""; for (let index = 0; index < event.results.length; index += 1) { const result = event.results[index]; if (result?.isFinal) finalText += `${result[0]?.transcript ?? ""} `; } if (finalText) transcriptRef.current += finalText; }; recognition.onerror = () => undefined; try { recognition.start(); recognitionRef.current = recognition; } catch { recognitionRef.current = null; } }
+      if (Ctor) { const recognition = new Ctor(); recognition.lang = "es-419"; recognition.continuous = true; recognition.interimResults = true; recognition.onresult = (event) => { let finalText = ""; for (let index = resultIndexRef.current; index < event.results.length; index += 1) { const result = event.results[index]; if (result?.isFinal) { finalText += `${result[0]?.transcript ?? ""} `; resultIndexRef.current = index + 1; } } if (finalText) transcriptRef.current += finalText; }; recognition.onerror = () => undefined; try { recognition.start(); recognitionRef.current = recognition; } catch { recognitionRef.current = null; } }
       recorder.start(); setRecording(true);
     } catch (error) {
       setRecording(false); stopTracks();

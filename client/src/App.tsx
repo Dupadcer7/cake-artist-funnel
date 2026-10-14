@@ -208,6 +208,6 @@ export function App() {
       <QuickReplies items={data.quickReplies} disabled={send.isPending || typing} onPick={(item) => void submitUserMessage({ text: item })} />
       {error && <p className="inline-error" role="alert">{error}</p>}
     </div></div>
-    <footer className="composer"><ChatInput disabled={send.isPending || typing || data.state.purchaseStatus === "purchased"} processingAudio={transcribe.isPending} onSend={(text) => void submitUserMessage({ text })} onImage={(file) => void handleImage(file)} onAudio={(blob, transcript) => void handleAudio(blob, transcript)} /></footer>
+    <footer className="composer"><ChatInput disabled={send.isPending || typing || data.state.purchaseStatus === "purchased"} processingAudio={transcribe.isPending} initialText={data.history.length === 0 ? "Hola Vale, quiero que me des más información acerca del curso" : undefined} onSend={(text) => void submitUserMessage({ text })} onImage={(file) => void handleImage(file)} onAudio={(blob, transcript) => void handleAudio(blob, transcript)} /></footer>
   </section>{adminOpen && <AdminPanel data={admin.data} onClose={() => setAdminOpen(false)} />}</main>;
 }

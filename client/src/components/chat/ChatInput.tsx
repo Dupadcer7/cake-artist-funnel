@@ -10,8 +10,8 @@ type SpeechRecognitionLike = {
 
 type SpeechWindow = Window & typeof globalThis & { webkitSpeechRecognition?: new () => SpeechRecognitionLike; SpeechRecognition?: new () => SpeechRecognitionLike };
 
-export function ChatInput({ disabled, processingAudio, onSend, onImage, onAudio }: { disabled: boolean; processingAudio: boolean; onSend: (text: string) => void; onImage: (file: File) => void; onAudio: (blob: Blob, transcript: string) => void }) {
-  const [text, setText] = useState("");
+export function ChatInput({ disabled, processingAudio, initialText, onSend, onImage, onAudio }: { disabled: boolean; processingAudio: boolean; initialText?: string; onSend: (text: string) => void; onImage: (file: File) => void; onAudio: (blob: Blob, transcript: string) => void }) {
+  const [text, setText] = useState(initialText ?? "");
   const [recording, setRecording] = useState(false);
   const [audioError, setAudioError] = useState<string | null>(null);
   const [preview, setPreview] = useState<{ blob: Blob; url: string; transcript: string } | null>(null);

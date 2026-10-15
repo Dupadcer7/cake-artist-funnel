@@ -75,6 +75,7 @@ export const api = {
   transcribeAudio: (args: { dataBase64: string; mimeType: string; browserTranscript?: string }) => call<{ status: "ok" | "provider_unavailable"; transcript: string | null; mediaKey: string; mediaUrl: string; provider: string }>("transcribeAudio", args),
   uploadImage: (args: { dataBase64: string; mimeType: "image/png" | "image/jpeg" }) => call<{ mediaKey: string; mediaUrl: string }>("uploadImage", args),
   listAdminConfig: (_args: Record<string, never>) => call<AdminResponse>("listAdminConfig", {}),
+  getFunnelAnalytics: (_args: Record<string, never>) => call<{ totalVisitors: number; started: number; diagnosed: number; viewedContent: number; viewedPrice: number; checkoutIntent: number; notInterested: number; byCountry: { country: string; count: number }[]; byExperience: { level: string; count: number }[] }>("getFunnelAnalytics", {}),
   updatePrice: (args: { country: string; currency: string; regularPrice: string | null; offerPrice: string | null; regularPriceDisplay: string | null; offerPriceDisplay: string; discountPercentOfficial: number | null; promotionActive: boolean; availableCoupons: number | null; official: boolean }) => call<{ ok: boolean; error: string | null }>("updatePrice", args),
   updatePaymentMethods: (args: { country: string; enabledPaymentMethods: string[] }) => call<{ ok: boolean; enabledPaymentMethods: string[] }>("updatePaymentMethods", args),
   updatePromotion: (args: { active: boolean }) => call<{ ok: boolean }>("updatePromotion", args),

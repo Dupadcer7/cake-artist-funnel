@@ -1,9 +1,43 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { api, type ApiResponse } from "../../api";
 
 type AdminData = ApiResponse<typeof api, "listAdminConfig">;
 type AdminPrice = AdminData["prices"][number];
+type FunnelData = ApiResponse<typeof api, "getFunnelAnalytics">;
+
+function FunnelAnalytics() {
+  const { data, isPending, isError } = useQuery({ queryKey: ["funnel-analytics"], queryFn: () => api.getFunnelAnalytics({}) });
+  if (isPending) return <p className="admin-status">Cargando datos del embudo…</p>;
+  if (isError || !data) return <p className="inline-error admin-validation">No se pudieron cargar los datos.</p>;
+  const stages: { label: string; value: number }[] = [
+    { label: "Visitaron el funnel", value: data.totalVisitors },
+    { label: "Escribieron un mensaje", value: data.started },
+    { label: "Completaron el diagnóstico", value: data.diagnosed },
+    { label: "Vieron el contenido del curso", value: data.viewedContent },
+    { label: "Vieron el precio", value: data.viewedPrice },
+    { label: "Llegaron a inscripción", value: data.checkoutIntent },
+  ];
+  const max = Math.max(1, ...stages.map((s) => s.value));
+  return <div className="funnel-analytics">
+    {stages.map((stage, i) => {
+      const prev = i === 0 ? stage.value : stages[i - 1].value;
+      const drop = prev > 0 ? Math.round((1 - stage.value / prev) * 100) : 0;
+      return <div key={stage.label} className="funnel-stage">
+        <div className="funnel-stage-head"><strong>{stage.label}</strong><span>{stage.value}</span></div>
+        <div className="funnel-bar"><i style={{ width: `${Math.round((stage.value / max) * 100)}%` }} /></div>
+        {i > 0 && <small className="funnel-drop">{drop}% se quedó en el paso anterior ↑</small>}
+      </div>;
+    })}
+    <p className="funnel-note">Cerraron por desinterés: <strong>{data.notInterested}</strong></p>
+    {data.byCountry.length > 0 && <div className="funnel-breakdown"><strong>Por país</strong>
+      {data.byCountry.map((r) => <div key={r.country} className="funnel-row"><span>{r.country}</span><span>{r.count}</span></div>)}
+    </div>}
+    {data.byExperience.length > 0 && <div className="funnel-breakdown"><strong>Por experiencia</strong>
+      {data.byExperience.map((r) => <div key={r.level} className="funnel-row"><span>{r.level === "beginner" ? "Desde cero" : r.level === "experienced" ? "Con experiencia" : r.level}</span><span>{r.count}</span></div>)}
+    </div>}
+  </div>;
+}
 
 function nullableText(form: FormData, key: string) {
   const value = String(form.get(key) ?? "").trim();
@@ -34,6 +68,7 @@ export function AdminPanel({ data, onClose }: { data: AdminData; onClose: () => 
   });
   const updatePaymentMethods = useMutation({ mutationFn: api.updatePaymentMethods, onSuccess: refresh });
   const updatePromotion = useMutation({ mutationFn: api.updatePromotion, onSuccess: refresh });
+  const [tab, setTab] = useState<"precios" | "embudo">("embudo");
   const activePrices = data.prices.filter((price) => !price.excluded);
 
   function savePrice(event: FormEvent<HTMLFormElement>, country: string) {
@@ -75,6 +110,11 @@ export function AdminPanel({ data, onClose }: { data: AdminData; onClose: () => 
 
   return <div className="admin-backdrop" role="presentation"><aside className="admin-panel" aria-label="Administración de precios y promoción">
     <header><div><p>Configuración persistente</p><h2>Administración</h2></div><button type="button" aria-label="Cerrar administración" onClick={onClose}>×</button></header>
+    <div className="admin-tabs" role="tablist">
+      <button type="button" role="tab" aria-selected={tab === "embudo"} className={tab === "embudo" ? "active" : ""} onClick={() => setTab("embudo")}>📊 Embudo</button>
+      <button type="button" role="tab" aria-selected={tab === "precios"} className={tab === "precios" ? "active" : ""} onClick={() => setTab("precios")}>💰 Precios</button>
+    </div>
+    {tab === "embudo" ? <section className="funnel-section"><FunnelAnalytics /></section> : <>
     <section className="promo-control"><div><strong>Bonos especiales</strong><span>Mostrar solo en cierre con promoción activa</span></div><label className="switch"><input aria-label="Activar bonos especiales" type="checkbox" checked={data.specialBonusesActive} onChange={(event) => updatePromotion.mutate({ active: event.target.checked })} /><i /></label></section>
     <div className="admin-list">{activePrices.map((price) => <article key={price.country} className="price-editor">
       <form onSubmit={(event) => savePrice(event, price.country)}>
@@ -99,5 +139,6 @@ export function AdminPanel({ data, onClose }: { data: AdminData; onClose: () => 
       </fieldset>
     </article>)}</div>
     {(updatePrice.isSuccess || updatePaymentMethods.isSuccess) && <p className="admin-status" role="status">Configuración guardada en la base de datos.</p>}
+    </>}
   </aside></div>;
 }

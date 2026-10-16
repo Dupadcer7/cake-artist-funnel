@@ -31,7 +31,6 @@ CREATE TABLE IF NOT EXISTS conversations (
  last_visit INTEGER NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS conversations_visitor_idx ON conversations(visitor_id, updated_at DESC);
-try{db.exec("ALTER TABLE conversations ADD COLUMN detected_country TEXT");}catch{}
 CREATE TABLE IF NOT EXISTS processed_user_messages (message_id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL REFERENCES conversations(conversation_id) ON DELETE CASCADE, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS country_prices (
  country TEXT PRIMARY KEY, currency TEXT NOT NULL, display_price TEXT NOT NULL, regular_price TEXT, offer_price TEXT, regular_price_display TEXT, offer_price_display TEXT,
@@ -41,6 +40,7 @@ CREATE TABLE IF NOT EXISTS country_prices (
 CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at INTEGER NOT NULL);
 `;
 db.exec(schema);
+try{db.exec("ALTER TABLE conversations ADD COLUMN detected_country TEXT");}catch{}
 
 const seedPrices: Array<[string,string,string,string|null,string|null,string|null,string|null,boolean,string[],string[],boolean,boolean,number]> = [
  ["Colombia","COP","$115.425 COP","218136","115425","$218.136 COP","$115.425 COP",true,["Tarjeta de crédito","Tarjeta de débito","PayPal","Nequi","Efecty","Bancolombia","PSE"],["Tarjeta de crédito","PayPal","Nequi","Efecty","Bancolombia","PSE"],true,false,1],

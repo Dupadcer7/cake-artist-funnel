@@ -4,6 +4,7 @@ import { api, fileToBase64, type ApiResponse } from "./api";
 import { ActionMessage, ChatHeader, ConversationDecor, MessageBubble, QuickReplies, TypingIndicator, type ChatMessage } from "./components/chat/Chat";
 import { ChatInput } from "./components/chat/ChatInput";
 import { AdminPanel } from "./components/admin/AdminPanel";
+import { AdminGate } from "./components/admin/AdminGate";
 
 const VISITOR_KEY = "cake-artist-visitor-id";
 type Session = ApiResponse<typeof api, "bootstrapSession">;
@@ -65,6 +66,7 @@ export function App() {
   const [typing, setTyping] = useState(false);
   const [typingLabel, setTypingLabel] = useState("Vale está escribiendo...");
   const [adminOpen, setAdminOpen] = useState(false);
+  const [adminUnlocked, setAdminUnlocked] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   // This flag belongs to the current page session only. Once bootstrap has
@@ -209,5 +211,5 @@ export function App() {
       {error && <p className="inline-error" role="alert">{error}</p>}
     </div></div>
     <footer className="composer"><ChatInput disabled={send.isPending || typing || data.state.purchaseStatus === "purchased"} processingAudio={transcribe.isPending} initialText={data.history.length === 0 ? "Hola Vale, quiero que me des más información acerca del curso" : undefined} onSend={(text) => void submitUserMessage({ text })} onImage={(file) => void handleImage(file)} onAudio={(blob, transcript) => void handleAudio(blob, transcript)} /></footer>
-  </section>{adminOpen && <AdminPanel data={admin.data} onClose={() => setAdminOpen(false)} />}</main>;
+  </section>{adminOpen && !adminUnlocked && <AdminGate onUnlock={() => setAdminUnlocked(true)} onClose={() => setAdminOpen(false)} />}{adminOpen && adminUnlocked && admin.data && <AdminPanel data={admin.data} onClose={() => { setAdminOpen(false); setAdminUnlocked(false); }} />}</main>;
 }

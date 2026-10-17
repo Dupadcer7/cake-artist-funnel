@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { MEDIA_LIBRARY } from "../../config/media";
 import { PRODUCT_KNOWLEDGE } from "../../config/product";
+import { trackPixel } from "../../lib/pixel";
 
 export type OfferPrice = {
   country: string;
@@ -69,6 +70,8 @@ function PriceSummary({ price }: { price: OfferPrice }) {
 }
 
 export function PriceCard({ price, onCheckout }: { price: OfferPrice; onCheckout: () => void }) {
+  // El visitante vio la tarjeta de precio → evento ViewContent del píxel.
+  useEffect(() => { trackPixel("ViewContent"); }, []);
   return <section className="price-card" aria-label={`Precio, formas de pago e inscripción para ${price.country}`}>
     <p className="card-kicker">🎂 CAKE ARTIST · {price.country}</p>
     <PriceSummary price={price} />
@@ -79,6 +82,8 @@ export function PriceCard({ price, onCheckout }: { price: OfferPrice; onCheckout
 }
 
 export function CheckoutCard({ price, onCheckout }: { price: OfferPrice; onCheckout: () => void }) {
+  // El visitante llegó al paso de inscripción → evento InitiateCheckout del píxel.
+  useEffect(() => { trackPixel("InitiateCheckout"); }, []);
   return <section className="checkout-card" aria-label="Inscripción a Cake Artist">
     <p className="card-kicker">Inscripción</p><h2>🎂 CAKE ARTIST</h2>
     <PriceSummary price={price} />

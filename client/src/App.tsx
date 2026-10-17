@@ -5,6 +5,7 @@ import { ActionMessage, ChatHeader, ConversationDecor, MessageBubble, QuickRepli
 import { ChatInput } from "./components/chat/ChatInput";
 import { AdminPanel } from "./components/admin/AdminPanel";
 import { AdminGate } from "./components/admin/AdminGate";
+import { trackPixel } from "./lib/pixel";
 
 const VISITOR_KEY = "cake-artist-visitor-id";
 type Session = ApiResponse<typeof api, "bootstrapSession">;
@@ -76,6 +77,9 @@ export function App() {
   const isGeneratingResponse = useRef(false);
   const lastProcessedUserMessageId = useRef<string | null>(null);
   const processedUserMessageIds = useRef(new Set<string>());
+  // Píxel de Meta: el evento Contact se dispara una sola vez por sesión,
+  // cuando el visitante envía su primer mensaje.
+  const contactTracked = useRef(false);
 
   const session = useQuery({
     queryKey: ["session", visitorId],
@@ -107,6 +111,12 @@ export function App() {
   async function processUserMessage(message: { messageId: string; role: "user"; text: string; type?: "text" | "audio" | "image"; mediaKey?: string; transcript?: string; mediaUrl?: string }) {
     if (!data || message.role !== "user") return;
     if (isGeneratingResponse.current || lastProcessedUserMessageId.current === message.messageId || processedUserMessageIds.current.has(message.messageId)) return;
+
+    // Primer mensaje del visitante en esta conversación → evento Contact del píxel.
+    if (!contactTracked.current && !data.history.some((item) => item.sender === "prospect")) {
+      contactTracked.current = true;
+      trackPixel("Contact");
+    }
 
     isGeneratingResponse.current = true;
     processedUserMessageIds.current.add(message.messageId);

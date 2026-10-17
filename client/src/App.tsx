@@ -63,6 +63,11 @@ async function blobToBase64(blob: Blob) { const bytes = new Uint8Array(await blo
 
 export function App() {
   const visitorId = useMemo(getVisitorId, []);
+  // Campaña de remarketing: ?src=remarketing → Vale usa el flujo corto con descuento.
+  const remarketingSource = useMemo(() => {
+    try { return new URLSearchParams(window.location.search).get("src") === "remarketing"; }
+    catch { return false; }
+  }, []);
   const queryClient = useQueryClient();
   const [typing, setTyping] = useState(false);
   const [typingLabel, setTypingLabel] = useState("Vale está escribiendo...");
@@ -84,7 +89,7 @@ export function App() {
   const session = useQuery({
     queryKey: ["session", visitorId],
     queryFn: async () => {
-      const result = await api.bootstrapSession({ visitorId, returningGreetingShown: returningGreetingShown.current });
+      const result = await api.bootstrapSession({ visitorId, returningGreetingShown: returningGreetingShown.current, remarketingSource });
       returningGreetingShown.current = result.returningGreetingShown;
       return result;
     },

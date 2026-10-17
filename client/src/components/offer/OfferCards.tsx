@@ -81,7 +81,7 @@ export function PriceCard({ price, onCheckout }: { price: OfferPrice; onCheckout
   </section>;
 }
 
-export function CheckoutCard({ price, onCheckout }: { price: OfferPrice; onCheckout: () => void }) {
+export function CheckoutCard({ price, onCheckout, checkoutUrl = PRODUCT_KNOWLEDGE.checkoutUrl }: { price: OfferPrice; onCheckout: () => void; checkoutUrl?: string }) {
   // El visitante llegó al paso de inscripción → evento InitiateCheckout del píxel.
   useEffect(() => { trackPixel("InitiateCheckout"); }, []);
   return <section className="checkout-card" aria-label="Inscripción a Cake Artist">
@@ -90,7 +90,7 @@ export function CheckoutCard({ price, onCheckout }: { price: OfferPrice; onCheck
     <PaymentMethods methods={price.enabledPaymentMethods} />
     <ul className="checkout-benefits"><li>+50 clases</li><li>8 módulos</li><li>Bonos incluidos</li><li>Acceso inmediato</li><li>7 días de garantía</li></ul>
     <p className="secure-note">🔒 Pago seguro mediante Hotmart</p>
-    <a className="checkout-button" href={PRODUCT_KNOWLEDGE.checkoutUrl} target="_blank" rel="noopener noreferrer" onClick={onCheckout}>💖 QUIERO COMPLETAR MI INSCRIPCIÓN</a>
+    <a className="checkout-button" href={checkoutUrl} target="_blank" rel="noopener noreferrer" onClick={onCheckout}>💖 QUIERO COMPLETAR MI INSCRIPCIÓN</a>
   </section>;
 }
 

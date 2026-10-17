@@ -16,7 +16,7 @@ export type ConversationStatus = "ACTIVE" | "NO_BUDGET" | "LATER" | "CLOSED_NOT_
 export type FunnelAction =
   | "NONE" | "SHOW_MODULES" | "SHOW_MODULES_PART_1" | "SHOW_MODULES_PART_2" | "SHOW_MODULES_PART_3"
   | "SHOW_TESTIMONIALS" | "SHOW_OFFICIAL_BONUSES" | "SHOW_SPECIAL_BONUSES"
-  | "SHOW_PRICE" | "SHOW_CHECKOUT_VIDEO" | "SHOW_CHECKOUT" | "SILENCE";
+  | "SHOW_PRICE" | "SHOW_CHECKOUT_VIDEO" | "SHOW_CHECKOUT" | "SHOW_CHECKOUT_DISCOUNT" | "SILENCE";
 
 export type ConversationState = {
   currentStage: string;
@@ -50,6 +50,7 @@ export type ConversationState = {
   conversationStatus: string;
   guaranteeMentioned: boolean;
   purchaseStatus: "prospect" | "purchased";
+  remarketingSource: boolean;
 };
 
 export type Price = {
@@ -92,6 +93,7 @@ const FREE_MENU = ["💰 Ver precio", "📚 Ver qué incluye", "➡️ Seguir de
 const IN_PERSON_MENU = ["📚 Ver qué incluye", "💰 Ver precio", "❓ Tengo otra duda"];
 const ONLINE_DOUBT_MENU = ["✨ Ver resultados de alumnas", "📚 Ver el contenido"];
 const SECURITY_MENU = ["💖 Ver cómo inscribirme"];
+const REMARKETING_MENU = ["💖 Quiero inscribirme", "❓ Tengo una duda"];
 
 function normalize(value: string) {
   return value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9ñ¿?¡!\s]/g, " ").replace(/\s+/g, " ").trim();
@@ -242,6 +244,113 @@ function enrollmentPlan(state: ConversationState, prices: Price[], specialBonuse
   state.checkoutShown = true;
   state.currentStage = "CHECKOUT";
   return { steps, quickReplies: [], state, price };
+}
+
+// Flujo de REMARKETING: para visitantes que llegan con ?src=remarketing.
+// Versión corta del cierre: sin diagnóstico de experiencia, directo a la
+// oferta especial con el link de descuento (SHOW_CHECKOUT_DISCOUNT).
+// Las dudas se responden con el motor de objeciones existente, sin
+// re-enganchar el flujo largo. El rechazo explícito cierra con elegancia.
+function remarketingCheckoutPlan(state: ConversationState, prices: Price[]): ReplyPlan {
+  state.conversationStatus = "ACTIVE";
+  state.silenced = false;
+  const price = configuredPrice(state, prices);
+  if (!price || price.excluded) return unavailablePricePlan(state, price);
+
+  state.purchaseIntent = "HIGH";
+  state.pendingAction = null;
+  state.lastAssistantQuestion = null;
+  state.currentStage = "CHECKOUT";
+
+  if (state.checkoutShown) {
+    return {
+      steps: [textStep("Tu enlace especial para completar la inscripción ya está disponible arriba 💖")],
+      quickReplies: [],
+      state,
+      price,
+    };
+  }
+
+  const steps: ReplyStep[] = [];
+  steps.push(textStep("¡Perfecto! 🎂 Esta es tu oportunidad especial: con este enlace accedes a Cake Artist con descuento, disponible por tiempo limitado."));
+  if (!state.checkoutVideoViewed) {
+    steps.push(actionStep("SHOW_CHECKOUT_VIDEO"));
+    state.checkoutVideoViewed = true;
+  }
+  steps.push(textStep("El pago se realiza de forma segura mediante Hotmart 🔒\n\nUna vez confirmado, el acceso llega automáticamente al correo que registres durante la compra."));
+  steps.push(textStep("Además cuentas con 7 días de garantía. Si dentro de ese período el programa no cumple tus expectativas, puedes solicitar el reembolso correspondiente."));
+  state.guaranteeMentioned = true;
+  steps.push(actionStep("SHOW_CHECKOUT_DISCOUNT"));
+  state.checkoutShown = true;
+  return { steps, quickReplies: [], state, price };
+}
+
+function remarketingPlan(raw: string, state: ConversationState, prices: Price[]): ReplyPlan {
+  const text = normalize(raw);
+
+  // Cierre elegante ante rechazo explícito (misma regla del flujo normal).
+  if (hasExplicitRejection(text)) return objectionPlan("NOT_INTERESTED", state);
+
+  // Dudas y objeciones: reutilizar el motor existente, sin re-enganchar el flujo largo.
+  const objection = detectObjection(text);
+  if (objection) return objectionPlan(objection, state);
+
+  const countryFromMessage = extractCountry(raw, prices);
+  if (countryFromMessage) {
+    state.country = countryFromMessage;
+    state.answeredQuestions.country = true;
+  }
+
+  // Sin país no se puede mostrar la tarjeta de inscripción: pedirlo (una sola pregunta).
+  if (!state.country) {
+    state.currentStage = "REMARKETING";
+    state.pendingAction = "remarketingCountry";
+    state.lastAssistantQuestion = "country";
+    return {
+      steps: [textStep("Para mostrarte tu oferta especial con el precio de tu país, ¿en qué país te encuentras? 😊")],
+      quickReplies: [],
+      state,
+      price: null,
+    };
+  }
+  state.pendingAction = null;
+
+  const wantsEnroll = has(text, ["quiero inscribirme", "ver como inscribirme", "quiero comprar", "pasame el enlace", "pasame el link", "dame el enlace", "dame el link", "quiero aprovechar", "como compro", "inscribirme ahora", "continuar a la inscripcion", "quiero el descuento", "me interesa la oferta", "aprovechar la oferta"]);
+  const wantsQuestion = has(text, ["tengo una duda", "tengo otra duda", "quiero preguntar", "hacer una pregunta"]);
+
+  // Intención de compra, o primer contacto con país ya conocido → oferta con descuento.
+  if (wantsEnroll || !state.checkoutShown) return remarketingCheckoutPlan(state, prices);
+
+  if (wantsQuestion) {
+    state.currentStage = "REMARKETING";
+    state.lastAssistantQuestion = "freeQuestion";
+    return { steps: [textStep("Claro 💖 Escríbeme tu duda sobre Cake Artist y te respondo directamente.")], quickReplies: [], state, price: null };
+  }
+
+  // Preguntas factuales frecuentes → respuesta directa, sin re-enganchar el flujo largo.
+  if (has(text, ["garantia", "devolucion", "reembolso"])) {
+    state.guaranteeMentioned = true;
+    return { steps: [textStep("Cake Artist cuenta con una garantía de 7 días. Si dentro de ese período el programa no cumple tus expectativas, puedes solicitar el reembolso correspondiente. 🔒")], quickReplies: allowedMenu(state, REMARKETING_MENU), state, price: null };
+  }
+  if (has(text, ["es online", "modalidad", "es presencial", "clases grabadas"])) {
+    return { steps: [textStep("Cake Artist es 100% online. Las clases quedan grabadas para que avances a tu ritmo desde donde estés y sin horarios fijos. 💖")], quickReplies: allowedMenu(state, REMARKETING_MENU), state, price: null };
+  }
+  if (has(text, ["cuando tengo acceso", "como accedo", "como ingreso", "credenciales", "acceso inmediato"])) {
+    return { steps: [textStep("El acceso es inmediato después de confirmarse el pago. Las credenciales llegan al correo que utilices durante la compra.")], quickReplies: allowedMenu(state, REMARKETING_MENU), state, price: null };
+  }
+  if (has(text, ["cuantas clases", "numero de clases"])) {
+    return { steps: [textStep("Cake Artist incluye más de 50 clases grabadas en HD, organizadas en 8 módulos.")], quickReplies: allowedMenu(state, REMARKETING_MENU), state, price: null };
+  }
+  if (has(text, ["certificado", "certificacion", "diploma"])) {
+    return { steps: [textStep("Sí 😊 Cake Artist incluye un certificado digital de culminación, disponible una vez que hayas finalizado el curso.")], quickReplies: allowedMenu(state, REMARKETING_MENU), state, price: null };
+  }
+
+  return {
+    steps: [textStep("Tu oferta especial con descuento sigue disponible arriba 💖 Si tienes una duda concreta sobre el curso, escríbeme y te la resuelvo.")],
+    quickReplies: allowedMenu(state, REMARKETING_MENU),
+    state,
+    price: null,
+  };
 }
 
 function menuPlan(state: ConversationState, content: string, menu = QUESTION_MENU): ReplyPlan {
@@ -442,6 +551,7 @@ function testimonialsPlan(state: ConversationState, wantsRepeat: boolean): Reply
 
 export function quickRepliesForState(state: ConversationState): string[] {
   if (state.checkoutShown || state.purchaseStatus === "purchased" || isTerminalStatus(state)) return [];
+  if (state.remarketingSource) return REMARKETING_MENU;
   if (!state.experienceLevel) return EXPERIENCE_MENU;
   if (state.pendingAction === "socialProofOffer") return state.experienceLevel === "experienced" ? SOCIAL_PROOF_EXPERIENCED_MENU : SOCIAL_PROOF_BEGINNER_MENU;
   if (state.pendingAction === "countryForPrice" || state.pendingAction === "countryForCheckout" || state.pendingAction === "countryForPayment" || state.pendingAction === "freeQuestion") return [];
@@ -486,6 +596,12 @@ export function planConversation(raw: string, initial: ConversationState, prices
   // no resources, price, checkout, CTA, or automatic funnel continuation.
   if (state.conversationStatus === "CLOSED_NOT_INTERESTED") {
     return closedFollowUpPlan(raw, text, state, prices, specialBonusesActive);
+  }
+
+  // Visitante de campaña de remarketing (?src=remarketing): flujo corto de
+  // cierre con descuento, sin diagnóstico de experiencia.
+  if (state.remarketingSource) {
+    return remarketingPlan(raw, state, prices);
   }
 
   if (beginnerChoice || experiencedChoice) {

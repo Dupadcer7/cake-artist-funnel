@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import valeProfile from "../../assets/vale-profile-correcta.jpg";
 import { BonusCard, CheckoutCard, CheckoutVideo, ModulesSequence, PriceCard, TestimonialsGallery, type OfferPrice } from "../offer/OfferCards";
+import { PRODUCT_KNOWLEDGE } from "../../config/product";
 
 export type ChatMessage = {
   id: string; sender: "vale" | "prospect"; type: "text" | "audio" | "image" | "action"; content: string;
@@ -57,6 +58,9 @@ function ActionContent({ action, experienceLevel, country, price, onProgress }: 
   if (action === "SHOW_PRICE" && country && price && !price.excluded) return <PriceCard price={price} onCheckout={() => onProgress("checkout")} />;
   if (action === "SHOW_CHECKOUT_VIDEO") return <CheckoutVideo onViewed={() => onProgress("video")} />;
   if (action === "SHOW_CHECKOUT" && country && price && !price.excluded) return <CheckoutCard price={price} onCheckout={() => onProgress("checkout")} />;
+  // Flujo de remarketing (?src=remarketing): la tarjeta de inscripción usa el
+  // link con descuento. Esta acción solo la emite el servidor en ese flujo.
+  if (action === "SHOW_CHECKOUT_DISCOUNT" && country && price && !price.excluded) return <CheckoutCard price={price} checkoutUrl={PRODUCT_KNOWLEDGE.discountCheckoutUrl} onCheckout={() => onProgress("checkout")} />;
   return null;
 }
 

@@ -20,7 +20,7 @@ export type ConversationState = {
   lastProcessedUserMessageId: string | null; isGeneratingResponse: boolean;
   answeredQuestions: { experienceLevel: boolean; mainGoal: boolean; country: boolean; businessStatus: boolean };
   beginnerReassuranceShown: boolean; detectedObjection: string | null; conversationStatus: string;
-  guaranteeMentioned: boolean; purchaseStatus: "prospect" | "purchased";
+  guaranteeMentioned: boolean; purchaseStatus: "prospect" | "purchased"; remarketingSource: boolean;
 };
 
 export type Price = {
